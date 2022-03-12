@@ -53,7 +53,7 @@ struct DigitTemplateFormatter {
 				indexesRemaining -= 1
 				
 			case .literal(let literalValue):
-				if indexesRemaining >= 0 {
+				if indexesRemaining > 0 {
 					buildUpIndexes += literalValue.count
 				}	//do not decrement indexesRemaining because we have not removed a digit from our value
 				valueToReturn.append(remainingComponent)

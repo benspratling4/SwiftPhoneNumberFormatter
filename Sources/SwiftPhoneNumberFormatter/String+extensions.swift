@@ -29,7 +29,7 @@ extension String {
 		replacingOccurrences(of: "[^0-9+]", with: "", options: [.regularExpression])
 	}
 	
-	func nsRangePosition(at stringIndex:Int)->Int? {
+	public func nsRangePosition(at stringIndex:Int)->Int? {
 		let index:String.Index = self.index(startIndex, offsetBy: stringIndex)
 		let utf16version: String.UTF16View = utf16
 		guard let utf16VersionOfIndex = index.samePosition(in: utf16version) else { return nil }

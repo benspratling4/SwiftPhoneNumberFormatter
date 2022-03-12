@@ -68,7 +68,7 @@ When being interpreted, user input has all characters except for digits and `+` 
 
 ### Options
 
-`PhoneNumber.Template.Options` is an `OptionSet` which represents categories of phone numbers.  By using digit literals, a template may associate specific subsets of phone numbers as being assigned only for use in the specific categories.  Some countries assign all mobile numbers in particular ranges.  Others assign specific ranges as disallowed, such a the area code `666` in the US.  Most assign emergency numbers.
+`PhoneNumber.Template.Options` is an `OptionSet` which represents categories of phone numbers.  By using digit literals, a template may associate specific subsets of phone numbers as being assigned only for use in the specific categories.  Some countries assign all mobile numbers in particular ranges.  Others assign specific ranges as disallowed, such as the area code `666` in the US.  Most assign emergency numbers.
 While `PhoneNumber.Template.Options.allCases` includes all the options, the `PhoneNumber.Template.Options.default` includes numbers users would be allowed to have devices assigned, excluding .emergency, .forbidden and .entertainment options.
 
 
@@ -77,35 +77,32 @@ While `PhoneNumber.Template.Options.allCases` includes all the options, the `Pho
  PhoneNumber.Formatter is designed to provide a great UX for validating phone numbers
  
 ```swift
-func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
-	guard let finalString = textField.changingCharacters(in: range, replacementString: string) else {
-		return false
-	}
-	let mediumNSRange:NSRange = textField.selectedRangeAfterChangingCharacters(in: range, replacementString: string)
-	let initialCursorIndex:Int?
-	if let rangeBound = Range(mediumNSRange, in:finalString)?.upperBound {
-		initialCursorIndex = finalString.distance(from: finalString.startIndex, to: rangeBound)
-	}
-	else {
-		initialCursorIndex = nil
-	}
-	guard let (newValue, newIndex) = phoneFormatter.enteredPhoneNumber(finalString, originalIndex: initialCursorIndex) else {
-		if finalString.digits.isEmpty {
-			textField.text = ""
+	func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
+		guard let finalString = textField.changingCharacters(in: range, replacementString: string) else {
+			return false
+		}
+		let mediumNSRange:NSRange = textField.selectedRangeAfterChangingCharacters(in: range, replacementString: string)
+		let initialCursorIndex:Int?
+		if let rangeBound = Range(mediumNSRange, in:finalString)?.upperBound {
+			initialCursorIndex = finalString.distance(from: finalString.startIndex, to: rangeBound)
+		}
+		else {
+			initialCursorIndex = nil
+		}
+		guard let (newValue, newIndex) = phoneFormatter.enteredPhoneNumber(finalString, originalIndex: initialCursorIndex) else {
+			if finalString.digits.isEmpty {
+				textField.text = ""
+			}
+			return false
+		}
+		
+		guard let (newFormattedString, newFormattedCursor) = phoneFormatter.formattedNumber(newValue, index: newIndex) else {
+			return false
+		}
+		textField.text = newFormattedString
+		if let newSelectionNSRangePosition = newFormattedString.nsRangePosition(at: newFormattedCursor) {
+			textField.selectedNSRange = NSRange(location: newSelectionNSRangePosition, length: 0)
 		}
 		return false
 	}
-	
-	guard let (newFormattedString, newFormattedCursor) = phoneFormatter.formattedNumber(newValue, index: newIndex) else {
-		return false
-	}
-	if newFormattedString == finalString {
-		return true
-	}
-	textField.text = newFormattedString
-	if let newSelectionNSRangePosition = newFormattedString.nsRangePosition(at: newFormattedCursor) {
-		textField.selectedNSRange = NSRange(location: newSelectionNSRangePosition, length: 0)
-	}
-	return false
-	
-}```
+```
