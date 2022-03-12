@@ -74,7 +74,7 @@ While `PhoneNumber.Template.Options.allCases` includes all the options, the `Pho
 
 ## Sample of using this in a UITextField delegate `(_:,shouldChangeCharactersIn:,...)`
 
- PhoneNumber.Formatter is designed to provide a great UX for validating phone numbers
+ PhoneNumber.Formatter is designed to provide a great UX for validating phone numbers.  This sample uses some UITextInput extensions from https://github.com/benspratling4/WorkableUIKit
  
 ```swift
 	func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
