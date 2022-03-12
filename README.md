@@ -41,7 +41,6 @@ Similarly, there is a variant of this function which tracks the insertion cursor
 `func formattedNumber(_ entry:PhoneNumber, index:Int?, includeCountryCode:Bool = false)->(String, Int)?` takes the input of the number of digits before the cursor, and outputs an integer suitable for use in Swift String.Index functions. 
 
 
-
 ## Templates
 
 SwiftPhoneNumberFormatter comes with a few sample phone number formats.
@@ -60,11 +59,17 @@ Include the character `#` to represent a user-entered digit.
 
 Include an actual digit, such as `5` or `6` or `1`.  The template will not be considered matched if the input does not include the specific digit in the specific location. This is especially useful in creating categories of numbers which are allowed or disallowed.  For instance, in the US, phone numbers starting with `555` are not assigned to actual devices, but may be stated in entertainment.  By including a specific template with these literals and setting the options to `.entertainment`, and disallowing entertainment options from the formatter, your app won't get PhoneNumber instances matching this template. 
 
+#### Literals
+
+Characters other than digits or `#` will be interpretted as "literals".  Users are not required to enter these characters, but they are included in formatted output.  For instance, in the US phone number `(666) 555-1234`, the `(`, `)`, ` `, and `-` characters are "literals".  The format string for a generic number would be `(###) ###-####`, where the user would enter up to 10 digits and the formatter would insert the additiona literals as needed.
+
+When being interpreted, user input has all characters except for digits and `+` stripped out.  When being formatted, the literals are inserted.  However, if the input is partial, then no literals will be inserted after the last user-entered digit.  Similarly cursor output indexes will always be immdiately after digits, not immediately after a literal, allowing the delete key to always alter the output by affecting an input digit.
+   
 
 ### Options
 
 `PhoneNumber.Template.Options` is an `OptionSet` which represents categories of phone numbers.  By using digit literals, a template may associate specific subsets of phone numbers as being assigned only for use in the specific categories.  Some countries assign all mobile numbers in particular ranges.  Others assign specific ranges as disallowed, such a the area code `666` in the US.  Most assign emergency numbers.
-While `PhoneNumber.Template.Options.allCases` includes all the options, the `PhoneNumber.Template.Options.default` includes numbers users would be allowed to have devices assigned, excluding .ermergency, .forbidden and .entertainment options.
+While `PhoneNumber.Template.Options.allCases` includes all the options, the `PhoneNumber.Template.Options.default` includes numbers users would be allowed to have devices assigned, excluding .emergency, .forbidden and .entertainment options.
 
 
 ## Sample of using this in a UITextField delegate `(_:,shouldChangeCharactersIn:,...)`
