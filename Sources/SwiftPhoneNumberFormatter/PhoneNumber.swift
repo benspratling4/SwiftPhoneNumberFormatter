@@ -61,7 +61,14 @@ extension PhoneNumber : Decodable {
 extension PhoneNumber {
 	public enum CountryCode : String, Codable, Hashable, CaseIterable {
 		case austrailia = "61"
+		case danmark = "45"
+		case españa = "34"
+		case ελλάδα = "30"
+		case ísland = "354"
+		case italia = "39"
 		case mexico = "52"
+		case polska = "48"
+		case repúblicaPortuguesa = "351"
 		case unitedKingdom = "44"
 		//North American Numbering Plan
 		case usAndCanada = "1"

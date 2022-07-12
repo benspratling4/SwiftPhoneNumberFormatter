@@ -15,6 +15,10 @@ struct DigitTemplateFormatter {
 		templateComponents = .init(template: template)
 	}
 	
+	init(templateComponents:[DigitTemplateComponent]) {
+		self.templateComponents = templateComponents
+	}
+	
 	///may contain
 	/// `#` characters where user digits are substituted,
 	/// digit literals which are required
@@ -73,6 +77,7 @@ struct DigitTemplateFormatter {
 				}
 				valueToReturn.append(.digitLiteral(digitString))
 				remainingValue = String(remainingValue.dropFirst())
+				
 			}
 		}
 		let finalString = valueToReturn
@@ -169,6 +174,10 @@ enum DigitTemplateComponent : Equatable {
 			return false
 		}
 	}
+}
+
+extension Set where Element == String {
+	static let digitsExceptZero:Set<String> = Set<String>(["1", "2", "3", "4", "5", "6", "7", "8", "9"])
 }
 
 

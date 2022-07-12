@@ -3,7 +3,8 @@ Phone number formatting in pure swift
 
 
 ## Representing phone numbers
-Phone numbers are represented as PhoneNumber struct instances.  Country codes and digits of the number are kept separate.
+Phone numbers are represented as `PhoneNumber` struct instances.  Country codes and digits of the number are kept separate.
+The `isPartial` field tells you if there were additional digits in the template for which the user did not enter digits.
 
 
 ## Codable
@@ -33,12 +34,12 @@ There is a variant, `func enteredPhoneNumber(_ input:String, originalIndex:Int?)
 ### Formatting Phone number strings
 
 To get a human-readable string from the number, call
-`func formattedNumber(_ entry:PhoneNumber, includeCountryCode:Bool = false)->String?`.
+`func formattedNumber(_ entry:PhoneNumber, includeCountryCode:CountryCodeOptions = .noCountryCode)->String?`.
 
 The country code of the PhoneNumber must be in the formatter's array of allowed countries (and in its templates).
 
 Similarly, there is a variant of this function which tracks the insertion cursor.
-`func formattedNumber(_ entry:PhoneNumber, index:Int?, includeCountryCode:Bool = false)->(String, Int)?` takes the input of the number of digits before the cursor, and outputs an integer suitable for use in Swift String.Index functions. 
+`func formattedNumber(_ entry:PhoneNumber, index:Int?, includeCountryCode:CountryCodeOptions = .noCountryCode)->(String, Int)?` takes the input of the number of digits before the cursor, and outputs an integer suitable for use in Swift String.Index functions. 
 
 
 ## Templates
@@ -70,6 +71,10 @@ When being interpreted, user input has all characters except for digits and `+` 
 
 `PhoneNumber.Template.Options` is an `OptionSet` which represents categories of phone numbers.  By using digit literals, a template may associate specific subsets of phone numbers as being assigned only for use in the specific categories.  Some countries assign all mobile numbers in particular ranges.  Others assign specific ranges as disallowed, such as the area code `666` in the US.  Most assign emergency numbers.
 While `PhoneNumber.Template.Options.allCases` includes all the options, the `PhoneNumber.Template.Options.default` includes numbers users would be allowed to have devices assigned, excluding .emergency, .forbidden and .entertainment options.
+
+### Trunk codes
+
+"Trunk Codes" are digits dialed before the number when dialing the number from within the same country, which should not be dialed when dialing the number with the country code.  Each country in the templates array may specify an optional trunk code as a string.  Do not include trunk codes in the templates.  Parsing for a particular template will suceed whether the trunk code is present or not.
 
 
 ## Sample of using this in a UITextField delegate `(_:,shouldChangeCharactersIn:,...)`

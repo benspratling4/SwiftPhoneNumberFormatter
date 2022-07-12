@@ -23,6 +23,12 @@ class PhoneNumberFormatterTests: XCTestCase {
 		XCTAssertEqual(value, PhoneNumber(countryCode: .usAndCanada, digits: "2024041234", isPartial: false))
 	}
 	
+	func testParsingLeadingCountryCodeUK() {
+		let formatter = PhoneNumber.Formatter(allowedCountries: [.unitedKingdom], allowedOptions: .all)
+		let value = formatter.enteredPhoneNumber("44 7294629362")
+		XCTAssertEqual(value, PhoneNumber(countryCode: .unitedKingdom, digits: "7294629362", isPartial: false))
+	}
+	
 	func testParsingEmergency() {
 		let formatter = PhoneNumber.Formatter(allowedCountries: [.usAndCanada], allowedOptions: .all)
 		let value = formatter.enteredPhoneNumber("911")
@@ -94,7 +100,7 @@ class PhoneNumberFormatterTests: XCTestCase {
 		}
 		
 		XCTAssertEqual(formattedValue, "(202) 441-23")
-		XCTAssertEqual(index, 1)
+		XCTAssertEqual(index, 0)
 	}
 	
 	func testFormatting() {
@@ -109,6 +115,25 @@ class PhoneNumberFormatterTests: XCTestCase {
 		XCTAssertEqual(formattedValue, "(202) 404-1234")
 	}
 	
+	func testFormattingWithTrunkCode() {
+		let formatter = PhoneNumber.Formatter(allowedCountries: [.unitedKingdom])
+		let value = PhoneNumber(countryCode: .unitedKingdom, digits: "7202404234", isPartial: true)
+		guard let formattedValue = formatter.formattedNumber(value, includeCountryCode: .noCountryCode) else {
+			XCTFail()
+			return
+		}
+		XCTAssertEqual(formattedValue, "072 0240 4234")
+	}
+	
+	func testFormattingWithHiddenTrunkCode() {
+		let formatter = PhoneNumber.Formatter(allowedCountries: [.unitedKingdom])
+		let value = PhoneNumber(countryCode: .unitedKingdom, digits: "7202404234", isPartial: true)
+		guard let formattedValue = formatter.formattedNumber(value, includeCountryCode: .countryCodeDrawnSeparately) else {
+			XCTFail()
+			return
+		}
+		XCTAssertEqual(formattedValue, "72 0240 4234")
+	}
 	
 	func testPhoneNumberCoding() {
 		let value = PhoneNumber(countryCode:.usAndCanada, digits: "6664041234")
@@ -118,6 +143,19 @@ class PhoneNumberFormatterTests: XCTestCase {
 		let decoded = try! JSONDecoder().decode(PhoneNumber.self, from: encodedData)
 		XCTAssertEqual(value, decoded)
 	}
+	
+	func testIgnoringTrunkCode() {
+		let formatter = PhoneNumber.Formatter(allowedCountries: [.unitedKingdom, .usAndCanada])
+		let value = formatter.enteredPhoneNumber("07259264820")
+		XCTAssertEqual(value, PhoneNumber(countryCode: .unitedKingdom, digits: "7259264820", isPartial: false))
+	}
+	
+	func testIgnoringPartialTrunkCode() {
+		let formatter = PhoneNumber.Formatter(allowedCountries: [.unitedKingdom, .usAndCanada])
+		let value = formatter.enteredPhoneNumber("07259264")
+		XCTAssertEqual(value, PhoneNumber(countryCode: .unitedKingdom, digits: "7259264", isPartial: true))
+	}
+	
 	
 	
 	

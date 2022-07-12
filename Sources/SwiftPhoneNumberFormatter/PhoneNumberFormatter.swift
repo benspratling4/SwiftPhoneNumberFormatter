@@ -23,6 +23,7 @@ extension PhoneNumber {
 			self.assumedCountry = assumedCountry ?? allowedCountries.first ?? .usAndCanada
 			self.templates = Self.allTemplatesByCountry.filter({allowedCountries.contains($0.key) })
 			self.allowedOptions = allowedOptions
+			self.templateCache = ParsedTemplateCache(templates)
 		}
 		
 		public func enteredPhoneNumber(_ input:String)->PhoneNumber? {
@@ -59,10 +60,10 @@ extension PhoneNumber {
 						.first
 					else { return nil }	//if we have +, but can't match an allowed country code, return nil
 				let cursorDigitsAfterCountryCode:Int = digitsBeforeIndex - countryCode.rawValue.count
-				guard let templates:[PhoneNumber.Template] = templates[countryCode] else { return nil }
+				guard let templates:[(template:[DigitTemplateComponent], options:PhoneNumber.Template.Options, trunkCode:String?)] = templateCache.templates[countryCode] else { return nil }
 				//find all the matching templates
 				let matchingTemplates = templates.compactMap({ template->([DigitTemplateComponent], Bool, Int, Template.Options)? in
-					guard let (components, isPartial, index) = DigitTemplateFormatter(template: template.template)
+					guard let (components, isPartial, index) = DigitTemplateFormatter(templateComponents: template.template)
 							.value(for: digits, index: cursorDigitsAfterCountryCode)
 						else { return nil }
 					return (components, isPartial, index, template.options)
@@ -104,11 +105,13 @@ extension PhoneNumber {
 					return (code, digits)
 				})
 				.compactMap { (countryCode, digits) in
-					guard let templates:[PhoneNumber.Template] = templates[countryCode] else { return nil }
+					guard let templates:[(template:[DigitTemplateComponent], options:PhoneNumber.Template.Options, trunkCode:String?)] = templateCache.templates[countryCode]
+						else { return nil }
+					//if there is a country code, there should not be a trunk code
 					let cursorDigitsAfterCountryCode:Int = digitsBeforeIndex - countryCode.rawValue.count
 					//find all the matching templates
 					let matchingTemplates = templates.compactMap({ template->([DigitTemplateComponent], Bool, Int, Template.Options)? in
-						guard let (components, isPartial, index) = DigitTemplateFormatter(template: template.template).value(for: digits, index: cursorDigitsAfterCountryCode) else {
+						guard let (components, isPartial, index) = DigitTemplateFormatter(templateComponents: template.template).value(for: digits, index: cursorDigitsAfterCountryCode) else {
 							return nil
 						}
 						return (components, isPartial, index, template.options)
@@ -149,10 +152,13 @@ extension PhoneNumber {
 			
 			let matchings:[(PhoneNumber, Int)] = allowedCountries
 				.compactMap({ countryCode in
-					guard let templates:[PhoneNumber.Template] = templates[countryCode] else { return nil }
+					guard let templates:[(template:[DigitTemplateComponent], options:PhoneNumber.Template.Options, trunkCode:String?)] = templateCache.templates[countryCode]
+						else { return nil }
 					//find all the matching templates
 					let matchingTemplates = templates.compactMap({ template->([DigitTemplateComponent], Bool, Int, Template.Options)? in
-						guard let (components, isPartial, index) = DigitTemplateFormatter(template: template.template).value(for: sanitizedString, index: digitsBeforeIndex) else {
+						//if there is a trunk code, optionally remove it from the front
+						let withoutTrunkCode:String = template.trunkCode.flatMap({ sanitizedString.withoutPrefix($0) }) ?? sanitizedString
+						guard let (components, isPartial, index) = DigitTemplateFormatter(templateComponents: template.template).value(for: withoutTrunkCode, index: digitsBeforeIndex) else {
 							return nil
 						}
 						return (components, isPartial, index, template.options)
@@ -203,15 +209,25 @@ extension PhoneNumber {
 			//anything
 			return matchings.first
 		}
-		 
 		
-		public func formattedNumber(_ entry:PhoneNumber, includeCountryCode:Bool = false)->String? {
+		public enum CountryCodeOptions {
+			///formatted for internaitonal numbers
+			case includeCountryCode
+			///if you're going to draw the country code leading in some other way, this option will not draw the country code or the trunk code
+			case countryCodeDrawnSeparately
+			///if the country has a trunk code, it will be included
+			case noCountryCode
+		}
+		
+		public func formattedNumber(_ entry:PhoneNumber, includeCountryCode:CountryCodeOptions = .noCountryCode)->String? {
 			return formattedNumber(entry, index: nil, includeCountryCode: includeCountryCode)?.0
 		}
 		
-		public func formattedNumber(_ entry:PhoneNumber, index:Int?, includeCountryCode:Bool = false)->(String, Int)? {
-			guard let templates = self.templates[entry.countryCode]?
-				.filter({ $0.options.subtracting(allowedOptions).isEmpty })	//don't use templates which can render options we aren't using
+		public func formattedNumber(_ entry:PhoneNumber, index:Int?, includeCountryCode:CountryCodeOptions = .noCountryCode)->(String, Int)? {
+			guard let countryProperties = self.templates[entry.countryCode] else { return nil }
+			let templates = countryProperties.templates
+				.filter({ $0.options.subtracting(allowedOptions).isEmpty })
+			guard templates.count > 0 //don't use templates which can render options we aren't using
 				else { return nil }
 			guard let formattedValue = templates
 			//something about removing templates with disallowed options
@@ -221,13 +237,20 @@ extension PhoneNumber {
 				})
 				.first
 			else { return nil }
-			if includeCountryCode {
+			switch includeCountryCode {
+			case .includeCountryCode:
 				let preString = "+" + entry.countryCode.rawValue + " "
 				let finalString:String = preString + formattedValue.0
 				let finalIndex = preString.count + formattedValue.1
 				return (finalString, finalIndex)
-			}
-			else {
+				
+			case .countryCodeDrawnSeparately:
+				return formattedValue
+				
+			case .noCountryCode:
+				if let trunkCode = countryProperties.trunkCode {
+					return (trunkCode + formattedValue.0, formattedValue.1 + trunkCode.count)
+				}
 				return formattedValue
 			}
 		}
@@ -235,22 +258,65 @@ extension PhoneNumber {
 		public var allowedCountries:[PhoneNumber.CountryCode]
 		public var assumedCountry:PhoneNumber.CountryCode
 		public var allowedOptions:PhoneNumber.Template.Options
-		public var templates:[PhoneNumber.CountryCode:[PhoneNumber.Template]]
+		public var templates:[PhoneNumber.CountryCode:(templates:[PhoneNumber.Template], trunkCode:String?)] {
+			didSet {
+				templateCache = ParsedTemplateCache(templates)
+			}
+		}
 		
-		public static var allTemplatesByCountry:[PhoneNumber.CountryCode:[PhoneNumber.Template]] = [
-			//North American Numbering Plan
-			.usAndCanada:[
+		fileprivate var templateCache:ParsedTemplateCache
+		
+		public static var allTemplatesByCountry:[PhoneNumber.CountryCode:(templates:[PhoneNumber.Template], trunkCode:String?)] = [
+			.austrailia:([.init("4## ### ###", options: .mobile)], "0"),
+			.danmark:([
+				.init("112", options: .emergency),
+				.init("114", options: .emergency),
+				.init("80 ## ## ##", options: .tollFree),
+				"## ## ## ##",
+			], nil),
+			.españa:([
+				.init("112", options: .emergency),
+				.init("6## ### ###", options:.mobile),
+				.init("7## ### ###", options:.mobile),
+				], nil),
+			.ελλάδα:([
+				"### #######",
+			], nil),
+			.ísland:([
+				"3## ### ###",
+				"### ####",
+			], nil),
+			.italia:([
+				.init("112", options: .emergency),
+				.init("113", options: .emergency),
+				.init("114", options: .emergency),
+				.init("115", options: .emergency),
+				.init("118", options: .emergency),
+				.init("3## ######", options: .mobile),
+				.init("3## #######", options: .mobile),
+			], nil),
+			.mexico:(["(##) ####-####"], nil),
+			.polska:([
+				.init("800 ### ###", options: .tollFree),
+				"## ### ## ##",
+			], nil),
+			.repúblicaPortuguesa:([
+				.init("9## ### ###", options: .mobile),
+			], nil),
+			.unitedKingdom:([
+				.init("7# #### ####", options: [.mobile]),
+			], "0"),
+			
+			///North American Numbering Plan
+			.usAndCanada:([
 				.init("(800) ###-####", options: .tollFree),
 				.init("(888) ###-####", options: .tollFree),
 				.init("(666) ###-####", options: .forbidden),
 				.init("(###) 555-####", options: .entertainment),
 				.init("911", options: .emergency),
 				"(###) ###-####",
-			],
+			], nil),
 			//TODO: add more information about other country's phone number formats
-			.unitedKingdom:[.init("07# #### ####", options: .mobile)],
-			.mexico:["(##) ####-####"],
-			.austrailia:[.init("04## ### ###", options: .mobile)],
 		]
 	 
 	}
@@ -342,3 +408,14 @@ extension PhoneNumber.Template {
 	}
 }
 
+private class ParsedTemplateCache {
+	
+	init(_ templates:[PhoneNumber.CountryCode:(templates:[PhoneNumber.Template], trunkCode:String?)]) {
+		self.templates = templates.mapValues({ (tuple)->[(template:[DigitTemplateComponent], options:PhoneNumber.Template.Options, trunkCode:String?)] in
+			tuple.templates.map { ([DigitTemplateComponent](template:$0.template), $0.options, tuple.trunkCode) }
+		})
+	}
+	
+	var templates:[PhoneNumber.CountryCode:[(template:[DigitTemplateComponent], options:PhoneNumber.Template.Options, trunkCode:String?)]] = [:]
+	
+}
