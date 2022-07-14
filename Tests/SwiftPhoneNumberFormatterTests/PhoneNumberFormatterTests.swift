@@ -201,4 +201,11 @@ class PhoneNumberFormatterTests: XCTestCase {
 	}
 	
 	
+	func testRegressionDigitSetDoesntFailPartialMatches() {
+		let formatter = PhoneNumber.Formatter(allowedCountries: [.usAndCanada, .unitedKingdom])
+		let value = formatter.enteredPhoneNumber("7")
+		XCTAssertEqual(value, PhoneNumber(countryCode: .usAndCanada, digits: "7", isPartial: true))
+	}
+	
+	
 }

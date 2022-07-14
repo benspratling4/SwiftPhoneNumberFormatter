@@ -134,8 +134,8 @@ struct DigitTemplateFormatter {
 				
 			case .digitSet(let allowedDigits):
 				guard let digit = remainingString.first else {
-					//if we're out of user input, and there are digit literals left to match, we did not match
-					return nil
+					isPartial = true
+					continue
 				}
 				let digitString = "\(digit)"
 				guard allowedDigits.contains(digitString) else {
