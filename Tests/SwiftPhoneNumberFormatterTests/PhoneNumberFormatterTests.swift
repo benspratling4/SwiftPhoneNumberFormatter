@@ -80,6 +80,19 @@ class PhoneNumberFormatterTests: XCTestCase {
 		XCTAssertEqual(index, 7)
 	}
 	
+	func testFormattingIncompleteNoLeadingCountryCodeWithIndexMiddleNonBreakingSpace() {
+		let formatter = PhoneNumber.Formatter(allowedCountries: [.usAndCanada], formatOptions: [.useNonBreakingSpace])
+		let value = PhoneNumber(countryCode: .usAndCanada, digits: "20244123", isPartial: true)
+		
+		guard let (formattedValue, index) = formatter.formattedNumber(value, index: 4) else {
+			XCTFail()
+			return
+		}
+		
+		XCTAssertEqual(formattedValue, "(202)\u{00a0}441-23")
+		XCTAssertEqual(index, 7)
+	}
+	
 	func testParsingIncompleteNoLeadingCountryCodeWithIndexAfterLeadingLiterals() {
 		let formatter = PhoneNumber.Formatter(allowedCountries: [.usAndCanada])
 		guard let (value, index) = formatter.enteredPhoneNumber("(202) 44-123", originalIndex: 1) else {
@@ -103,6 +116,19 @@ class PhoneNumberFormatterTests: XCTestCase {
 		XCTAssertEqual(index, 0)
 	}
 	
+	func testFormattingIncompleteNoLeadingCountryCodeWithIndexAfterLeadingLiteralsNonBreakingSpace() {
+		let formatter = PhoneNumber.Formatter(allowedCountries: [.usAndCanada], formatOptions: [.useNonBreakingSpace])
+		let value = PhoneNumber(countryCode: .usAndCanada, digits: "20244123", isPartial: true)
+		
+		guard let (formattedValue, index) = formatter.formattedNumber(value, index: 0) else {
+			XCTFail()
+			return
+		}
+		
+		XCTAssertEqual(formattedValue, "(202)\u{00a0}441-23")
+		XCTAssertEqual(index, 0)
+	}
+	
 	func testFormatting() {
 		let formatter = PhoneNumber.Formatter(allowedCountries: [.usAndCanada])
 		let value = PhoneNumber(countryCode: .usAndCanada, digits: "2024041234", isPartial: true)
@@ -122,7 +148,7 @@ class PhoneNumberFormatterTests: XCTestCase {
 			XCTFail()
 			return
 		}
-		XCTAssertEqual(formattedValue, "072 0240 4234")
+		XCTAssertEqual(formattedValue, "07202 404 234")
 	}
 	
 	func testFormattingWithHiddenTrunkCode() {
@@ -132,7 +158,7 @@ class PhoneNumberFormatterTests: XCTestCase {
 			XCTFail()
 			return
 		}
-		XCTAssertEqual(formattedValue, "72 0240 4234")
+		XCTAssertEqual(formattedValue, "7202 404 234")
 	}
 	
 	func testPhoneNumberCoding() {

@@ -18,12 +18,28 @@ extension PhoneNumber {
 			allowedCountries:[PhoneNumber.CountryCode] = PhoneNumber.CountryCode.allCases
 			///will assume the first country in your allowedCountries
 			 ,assumedCountry:PhoneNumber.CountryCode? = nil
-			 ,allowedOptions:PhoneNumber.Template.Options = .default) {
+			 ,allowedOptions:PhoneNumber.Template.Options = .default
+			,formatOptions:FormatOptions = .default
+		) {
 			self.allowedCountries = allowedCountries
 			self.assumedCountry = assumedCountry ?? allowedCountries.first ?? .usAndCanada
 			self.templates = Self.allTemplatesByCountry.filter({allowedCountries.contains($0.key) })
 			self.allowedOptions = allowedOptions
 			self.templateCache = ParsedTemplateCache(templates)
+			self.formatOptions = formatOptions
+		}
+		
+		public struct FormatOptions : OptionSet {
+			
+			public static let `default` = FormatOptions([])
+			
+			public static let useNonBreakingSpace:FormatOptions = FormatOptions(rawValue: 1<<0)
+			
+			//MARK: - RawRepresentable
+			public var rawValue: Int
+			public init(rawValue: Int) {
+				self.rawValue = rawValue
+			}
 		}
 		
 		public func enteredPhoneNumber(_ input:String)->PhoneNumber? {
@@ -242,22 +258,43 @@ extension PhoneNumber {
 				let preString = "+" + entry.countryCode.rawValue + " "
 				let finalString:String = preString + formattedValue.0
 				let finalIndex = preString.count + formattedValue.1
-				return (finalString, finalIndex)
+				if formatOptions.contains(.useNonBreakingSpace) {
+					return (finalString.replacingOccurrences(of: " ", with: "\u{00a0}"), finalIndex)
+				}
+				else {
+					return (finalString, finalIndex)
+				}
 				
 			case .countryCodeDrawnSeparately:
-				return formattedValue
+				if formatOptions.contains(.useNonBreakingSpace) {
+					return (formattedValue.0.replacingOccurrences(of: " ", with: "\u{00a0}"), formattedValue.1)
+				}
+				else {
+					return formattedValue
+				}
 				
 			case .noCountryCode:
-				if let trunkCode = countryProperties.trunkCode {
-					return (trunkCode + formattedValue.0, formattedValue.1 + trunkCode.count)
+				let spaceReplaced:String
+				if formatOptions.contains(.useNonBreakingSpace) {
+					spaceReplaced = formattedValue.0.replacingOccurrences(of: " ", with: "\u{00a0}")
 				}
-				return formattedValue
+				else {
+					spaceReplaced = formattedValue.0
+				}
+				
+				if let trunkCode = countryProperties.trunkCode {
+					return (trunkCode + spaceReplaced, formattedValue.1 + trunkCode.count)
+				}
+				return (spaceReplaced, formattedValue.1)
 			}
 		}
 		
 		public var allowedCountries:[PhoneNumber.CountryCode]
 		public var assumedCountry:PhoneNumber.CountryCode
 		public var allowedOptions:PhoneNumber.Template.Options
+		
+		///if set to true, spaces in the digit template will be replaced with \u{00a0}
+		public var formatOptions:FormatOptions
 		public var templates:[PhoneNumber.CountryCode:(templates:[PhoneNumber.Template], trunkCode:String?)] {
 			didSet {
 				templateCache = ParsedTemplateCache(templates)
@@ -267,7 +304,11 @@ extension PhoneNumber {
 		fileprivate var templateCache:ParsedTemplateCache
 		
 		public static var allTemplatesByCountry:[PhoneNumber.CountryCode:(templates:[PhoneNumber.Template], trunkCode:String?)] = [
-			.austrailia:([.init("4## ### ###", options: .mobile)], "0"),
+			.austrailia:([
+				.init("4## ### ###", options: .mobile),
+				.init("5## ### ###", options: .mobile),
+				
+			], "0"),
 			.danmark:([
 				.init("112", options: .emergency),
 				.init("114", options: .emergency),
@@ -304,7 +345,12 @@ extension PhoneNumber {
 				.init("9## ### ###", options: .mobile),
 			], nil),
 			.unitedKingdom:([
-				.init("7# #### ####", options: [.mobile]),
+				.init("999", options: [.emergency]),
+				.init("112", options: [.emergency]),
+				.init("7### ### ###", options: [.mobile]),
+				.init("800 ### ###", options: [.tollFree]),
+				.init("800 ### ####", options: [.tollFree]),
+				.init("808 ### ####", options: [.tollFree]),
 			], "0"),
 			
 			///North American Numbering Plan
