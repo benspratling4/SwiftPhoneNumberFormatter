@@ -182,7 +182,23 @@ class PhoneNumberFormatterTests: XCTestCase {
 		XCTAssertEqual(value, PhoneNumber(countryCode: .unitedKingdom, digits: "7259264", isPartial: true))
 	}
 	
+	func testNonPartialOtherOverridingParrtialAssumed() {
+		let formatter = PhoneNumber.Formatter(allowedCountries: [.usAndCanada, .unitedKingdom])
+		let value = formatter.enteredPhoneNumber("07259264820", matchesPolicy: .nonPartialOtherOverridesPartialAssumed)
+		XCTAssertEqual(value, PhoneNumber(countryCode: .unitedKingdom, digits: "7259264820", isPartial: false))
+	}
 	
+	func testNonPartialOtherShouldntOverridParrtialAssumed() {
+		let formatter = PhoneNumber.Formatter(allowedCountries: [.usAndCanada, .unitedKingdom])
+		let value = formatter.enteredPhoneNumber("7259264820")
+		XCTAssertEqual(value, PhoneNumber(countryCode: .usAndCanada, digits: "7259264820", isPartial: false))
+	}
+	
+	func testNonPartialOtherShouldntOverridParrtialAssumedWithExtraDigit() {
+		let formatter = PhoneNumber.Formatter(allowedCountries: [.usAndCanada, .unitedKingdom])
+		let value = formatter.enteredPhoneNumber("72592648201")
+		XCTAssertEqual(value, PhoneNumber(countryCode: .usAndCanada, digits: "7259264820", isPartial: false))
+	}
 	
 	
 }

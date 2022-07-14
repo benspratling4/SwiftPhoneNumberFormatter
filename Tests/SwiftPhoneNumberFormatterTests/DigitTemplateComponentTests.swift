@@ -72,9 +72,9 @@ class DigitTemplateComponentTests: XCTestCase {
 	
 	func testDigitTemplateComponentParsingCombinedTemplate() {
 		let testCases:[(String, [DigitTemplateComponent])] = [
-			("(###) 867-5309", [
+			("(N##) 867-5309", [
 				.literal("("),
-				.digit, .digit, .digit,
+				.digitSet(.digitsExceptOneAndZero), .digit, .digit,
 				.literal(") "),
 				.digitLiteral("8"),
 				.digitLiteral("6"),
@@ -85,11 +85,11 @@ class DigitTemplateComponentTests: XCTestCase {
 				.digitLiteral("0"),
 				.digitLiteral("9"),
 			]),
-			("(###) ###-####", [
+			("(###) N##-####", [
 				.literal("("),
 				.digit, .digit, .digit,
 				.literal(") "),
-				.digit, .digit, .digit,
+				.digitSet(.digitsExceptOneAndZero), .digit, .digit,
 				.literal("-"),
 				.digit, .digit, .digit, .digit,
 			]),

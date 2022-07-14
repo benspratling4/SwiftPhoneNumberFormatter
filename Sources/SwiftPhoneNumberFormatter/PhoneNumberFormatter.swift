@@ -42,11 +42,21 @@ extension PhoneNumber {
 			}
 		}
 		
-		public func enteredPhoneNumber(_ input:String)->PhoneNumber? {
-			return enteredPhoneNumber(input, originalIndex: nil)?.0
+		
+		///partial numbers may match templates in multiple countries, use this to pick one over the other
+		public enum CountryCodeChangeMatchPolicy {
+			///use this if you user is typing one digit at a time, where their preference of country codes should remain stable for partial matches
+			case partialAssumedOverridesNonPartialOther
+			
+			///use this if your user typed the whole number at once, for instance by tapping an autocomplete suggestion
+			case nonPartialOtherOverridesPartialAssumed
 		}
 		
-		public func enteredPhoneNumber(_ input:String, originalIndex:Int?)->(PhoneNumber, Int)? {
+		public func enteredPhoneNumber(_ input:String, matchesPolicy:CountryCodeChangeMatchPolicy = .partialAssumedOverridesNonPartialOther)->PhoneNumber? {
+			return enteredPhoneNumber(input, matchesPolicy:matchesPolicy, originalIndex: nil)?.0
+		}
+		
+		public func enteredPhoneNumber(_ input:String, matchesPolicy:CountryCodeChangeMatchPolicy = .partialAssumedOverridesNonPartialOther, originalIndex:Int?)->(PhoneNumber, Int)? {
 			//get the sanitized string which contains only digits that we should care about
 			let sanitizedString:String = input
 				.convertingPhoneWords
@@ -166,20 +176,21 @@ extension PhoneNumber {
 			
 			//see if we can assume a country code, either by matching a template, or by assuming the country code.
 			
-			let matchings:[(PhoneNumber, Int)] = allowedCountries
+			let matchings:[(PhoneNumber, Int, hasExcessDigits:Bool)] = allowedCountries
 				.compactMap({ countryCode in
 					guard let templates:[(template:[DigitTemplateComponent], options:PhoneNumber.Template.Options, trunkCode:String?)] = templateCache.templates[countryCode]
 						else { return nil }
 					//find all the matching templates
-					let matchingTemplates = templates.compactMap({ template->([DigitTemplateComponent], Bool, Int, Template.Options)? in
+					let matchingTemplates = templates.compactMap({ template->([DigitTemplateComponent], Bool, Int, Template.Options, Bool)? in
+						//TODO: make knowledge of if we had a trunk code explicit
 						//if there is a trunk code, optionally remove it from the front
 						let withoutTrunkCode:String = template.trunkCode.flatMap({ sanitizedString.withoutPrefix($0) }) ?? sanitizedString
 						guard let (components, isPartial, index) = DigitTemplateFormatter(templateComponents: template.template).value(for: withoutTrunkCode, index: digitsBeforeIndex) else {
 							return nil
 						}
-						return (components, isPartial, index, template.options)
+						return (components, isPartial, index, template.options, withoutTrunkCode.count > template.template.digitCount)
 					})
-					let matchesToConsider:[([DigitTemplateComponent], Bool, Int, Template.Options)]
+					let matchesToConsider:[([DigitTemplateComponent], Bool, Int, Template.Options, Bool)]
 //					let exactTemplateMatches = matchingTemplates.filter({ !$0.1 })
 //					if exactTemplateMatches.count > 0 {
 //						//ignore all partial matches
@@ -196,34 +207,73 @@ extension PhoneNumber {
 					//return the first match
 					return matchesToConsider.first.flatMap {
 						(PhoneNumber(countryCode: countryCode, digits: $0.0.digitTemplateString, isPartial: $0.1)
-						 ,$0.2)
+						 ,$0.2, $0.4)
 						 }
 				})
 			
 			let exactMatchesWithAllCountryCodes = matchings.filter({ !$0.0.isPartial })
-			//look for a matching non-partial code, with the assumed country code
-			if let assumedCountryMatch = exactMatchesWithAllCountryCodes
-				.filter({ $0.0.countryCode == assumedCountry }).first {
-				return assumedCountryMatch
+			
+			let removingNonMatchingField = { (tuple:(number:PhoneNumber, index:Int, hasExcessDigits:Bool))->(PhoneNumber, Int) in
+				return (tuple.number, tuple.index)
 			}
 			
-			//return any non-partial match without a leading country code
-			if let anyNonPartialMatch = exactMatchesWithAllCountryCodes.first {
-				return anyNonPartialMatch
-			}
-			
-			//return partial matches with leading country codes before partial matches without them
-			if let anyNonPartialLeadingCountryCodeMatch = countryCodeDigitPairs.first {
-				return anyNonPartialLeadingCountryCodeMatch
-			}
-			
-			//any partial non-leading country code, with the assumed country
-			if let anyMatch = matchings.filter({ $0.0.countryCode == assumedCountry }).first {
-				return anyMatch
+			switch matchesPolicy {
+			case .partialAssumedOverridesNonPartialOther:
+				//look for a matching non-partial code, with the assumed country code
+				if let assumedCountryMatch = exactMatchesWithAllCountryCodes
+					.filter({ $0.0.countryCode == assumedCountry }).first {
+					return removingNonMatchingField(assumedCountryMatch)
+				}
+				
+				//any partial non-leading country code, with the assumed country
+				if let anyMatch = matchings.filter({ $0.0.countryCode == assumedCountry }).first {
+					return removingNonMatchingField(anyMatch)
+				}
+				
+				//return any non-partial match without a leading country code
+				if let anyNonPartialMatch = exactMatchesWithAllCountryCodes.first {
+					return removingNonMatchingField(anyNonPartialMatch)
+				}
+				
+				//return partial matches with leading country codes before partial matches without them
+				if let anyNonPartialLeadingCountryCodeMatch = countryCodeDigitPairs.first {
+					return anyNonPartialLeadingCountryCodeMatch
+				}
+				
+			case .nonPartialOtherOverridesPartialAssumed:
+				
+				//look for a matching non-partial code, with the assumed country code
+				if let assumedCountryMatch = exactMatchesWithAllCountryCodes
+					.filter({ $0.0.countryCode == assumedCountry }).first {
+					return removingNonMatchingField(assumedCountryMatch)
+				}
+				
+				//return any non-partial match without a leading country code
+				if let anyNonPartialMatch = exactMatchesWithAllCountryCodes
+					.filter({ $0.hasExcessDigits == false })
+					.first {
+					return removingNonMatchingField(anyNonPartialMatch)
+				}
+				
+				//return partial matches with leading country codes before partial matches without them
+				if let anyNonPartialLeadingCountryCodeMatch = countryCodeDigitPairs.first {
+					return anyNonPartialLeadingCountryCodeMatch
+				}
+				
+				//return any non-partial match without a leading country code
+				if let anyNonPartialMatch = exactMatchesWithAllCountryCodes.first {
+					return removingNonMatchingField(anyNonPartialMatch)
+				}
+				
+				//any partial non-leading country code, with the assumed country
+				if let anyMatch = matchings.filter({ $0.0.countryCode == assumedCountry }).first {
+					return removingNonMatchingField(anyMatch)
+				}
+				
 			}
 			
 			//anything
-			return matchings.first
+			return matchings.first.flatMap({ removingNonMatchingField($0) })
 		}
 		
 		public enum CountryCodeOptions {
@@ -303,68 +353,6 @@ extension PhoneNumber {
 		
 		fileprivate var templateCache:ParsedTemplateCache
 		
-		public static var allTemplatesByCountry:[PhoneNumber.CountryCode:(templates:[PhoneNumber.Template], trunkCode:String?)] = [
-			.austrailia:([
-				.init("4## ### ###", options: .mobile),
-				.init("5## ### ###", options: .mobile),
-				
-			], "0"),
-			.danmark:([
-				.init("112", options: .emergency),
-				.init("114", options: .emergency),
-				.init("80 ## ## ##", options: .tollFree),
-				"## ## ## ##",
-			], nil),
-			.españa:([
-				.init("112", options: .emergency),
-				.init("6## ### ###", options:.mobile),
-				.init("7## ### ###", options:.mobile),
-				], nil),
-			.ελλάδα:([
-				"### #######",
-			], nil),
-			.ísland:([
-				"3## ### ###",
-				"### ####",
-			], nil),
-			.italia:([
-				.init("112", options: .emergency),
-				.init("113", options: .emergency),
-				.init("114", options: .emergency),
-				.init("115", options: .emergency),
-				.init("118", options: .emergency),
-				.init("3## ######", options: .mobile),
-				.init("3## #######", options: .mobile),
-			], nil),
-			.mexico:(["(##) ####-####"], nil),
-			.polska:([
-				.init("800 ### ###", options: .tollFree),
-				"## ### ## ##",
-			], nil),
-			.repúblicaPortuguesa:([
-				.init("9## ### ###", options: .mobile),
-			], nil),
-			.unitedKingdom:([
-				.init("999", options: [.emergency]),
-				.init("112", options: [.emergency]),
-				.init("7### ### ###", options: [.mobile]),
-				.init("800 ### ###", options: [.tollFree]),
-				.init("800 ### ####", options: [.tollFree]),
-				.init("808 ### ####", options: [.tollFree]),
-			], "0"),
-			
-			///North American Numbering Plan
-			.usAndCanada:([
-				.init("(800) ###-####", options: .tollFree),
-				.init("(888) ###-####", options: .tollFree),
-				.init("(666) ###-####", options: .forbidden),
-				.init("(###) 555-####", options: .entertainment),
-				.init("911", options: .emergency),
-				"(###) ###-####",
-			], nil),
-			//TODO: add more information about other country's phone number formats
-		]
-	 
 	}
 }
 

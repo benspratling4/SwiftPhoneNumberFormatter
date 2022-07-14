@@ -94,7 +94,9 @@ While `PhoneNumber.Template.Options.allCases` includes all the options, the `Pho
 		else {
 			initialCursorIndex = nil
 		}
-		guard let (newValue, newIndex) = phoneFormatter.enteredPhoneNumber(finalString, originalIndex: initialCursorIndex) else {
+		let replacingWholeString:Bool = string.count >= 3
+		let matchPolicy:PhoneNumber.Formatter.CountryCodeChangeMatchPolicy = replacingWholeString ? .partialAssumedOverridesNonPartialOther : .partialAssumedOverridesNonPartialOther
+		guard let (newValue, newIndex) = phoneFormatter.enteredPhoneNumber(finalString, matchesPolicy:matchPolicy, originalIndex: initialCursorIndex) else {
 			if finalString.digits.isEmpty {
 				textField.text = ""
 			}
